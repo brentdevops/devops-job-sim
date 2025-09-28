@@ -1,0 +1,14 @@
+name: CI Diagnostic
+on: [push]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show runner info
+        run: |
+          uname -a
+          echo "Runner user: $(whoami)"
+          echo "Listing /var/run/docker.sock if present:"
+          ls -l /var/run/docker.sock || true
+          echo "Test network: curl -I https://www.google.com || true"
