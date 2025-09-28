@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image (context: app/)
+        run: docker build -t devops-job-sim-app:${{ github.sha }} -f app/Dockerfile app
+
+      - name: Run container and smoke test
+        run: |
+          set -euo pipefail
+          CID=$(docker run -d -p 8080:8080 -e APP_VERSION=${{ github.sha }} devops-job-sim-app:${{ github.sha }})
+          echo "started $CID"
+          for i in $(seq 1 15); do
+            if curl -sS http://localhost:8080/health >/dev/null 2>&1; then
+              echo "health ok"
+              break
+            fi
+            sleep 1
+          done
+          echo "----- /health -----"
+          curl -sS http://localhost:8080/health || true
+          echo "----- /version -----"
+          curl -sS http://localhost:8080/version || true
+          echo $CID > /tmp/ci_cid
+
+      - name: Stop container (always)
+        if: always()
+        run: |
+          if [ -f /tmp/ci_cid ]; then
+            docker stop $(cat /tmp/ci_cid) || true
+            docker rm $(cat /tmp/ci_cid) || true
+          fi
